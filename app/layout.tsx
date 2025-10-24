@@ -7,7 +7,7 @@ const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Video Scene Detector",
+  title: "Sora2 Frame Splitter",
   description: "Detect scene changes in videos and extract keyframes",
   generator: "v0.app",
 }

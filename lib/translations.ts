@@ -1,0 +1,39 @@
+export const translations = {
+  en: {
+    title: "Sora2 Frame Splitter",
+    description: "Detect scene changes in videos and extract keyframes",
+    dragDrop: "Drag & drop video file",
+    orClick: "or click the button below to select",
+    selectFile: "Select File",
+    selectedFile: "Selected file:",
+    sensitivity: "Scene Detection Sensitivity:",
+    sensitivityHint: "Low value = more scenes detected | High value = only major changes",
+    recommendedValues: "Recommended: 0.10 (sensitive) | 0.20 (standard) | 0.35 (strict)",
+    startExtraction: "Start Extraction",
+    processing: "Processing...",
+    extractedFrames: "Extracted Frames",
+    clickToDownload: "Click to\nDownload",
+    hint: "All processing is done in your browser. Videos are not uploaded. Click each frame to download.",
+    videoError: "Please select a video file",
+  },
+  ja: {
+    title: "Sora2 Frame Splitter",
+    description: "動画からシーン検出し、各ショットの先頭フレームを抽出します",
+    dragDrop: "動画ファイルをドラッグ&ドロップ",
+    orClick: "または下のボタンをクリックして選択",
+    selectFile: "ファイルを選択",
+    selectedFile: "選択ファイル:",
+    sensitivity: "シーン検出の感度:",
+    sensitivityHint: "低い値 = より多くのシーン検出 | 高い値 = 大きな変化のみ検出",
+    recommendedValues: "推奨値: 0.10 (敏感) | 0.20 (標準) | 0.35 (厳選)",
+    startExtraction: "抽出スタート",
+    processing: "処理中...",
+    extractedFrames: "抽出されたフレーム",
+    clickToDownload: "クリックで\nダウンロード",
+    hint: "すべての処理はブラウザ内で行われます。動画はアップロードされません。各フレームをクリックするとダウンロードできます。",
+    videoError: "動画ファイルを選択してください",
+  },
+} as const
+
+export type Language = keyof typeof translations
+export type TranslationKey = keyof (typeof translations)["en"]

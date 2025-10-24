@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Slider } from "@/components/ui/slider"
 import { Upload, Play, Loader2 } from "lucide-react"
+import { translations, type Language } from "@/lib/translations"
 
 interface ExtractedFrame {
   timestamp: number
@@ -14,7 +15,12 @@ interface ExtractedFrame {
   index: number
 }
 
-export default function SceneDetector() {
+interface SceneDetectorProps {
+  language: Language
+}
+
+export default function SceneDetector({ language }: SceneDetectorProps) {
+  const t = translations[language]
   const [videoFile, setVideoFile] = useState<File | null>(null)
   const [threshold, setThreshold] = useState(0.2)
   const [isProcessing, setIsProcessing] = useState(false)
@@ -44,7 +50,7 @@ export default function SceneDetector() {
       setFrames([])
       setError(null)
     } else {
-      setError("動画ファイルを選択してください")
+      setError(t.videoError)
     }
   }
 
@@ -269,11 +275,11 @@ export default function SceneDetector() {
           <div className="flex flex-col items-center justify-center gap-4">
             <Upload className="w-12 h-12 text-muted-foreground" />
             <div className="text-center">
-              <p className="text-lg font-semibold text-foreground">動画ファイルをドラッグ&ドロップ</p>
-              <p className="text-sm text-muted-foreground mt-1">または下のボタンをクリックして選択</p>
+              <p className="text-lg font-semibold text-foreground">{t.dragDrop}</p>
+              <p className="text-sm text-muted-foreground mt-1">{t.orClick}</p>
             </div>
             <Button variant="outline" className="mt-2 bg-transparent" onClick={() => fileInputRef.current?.click()}>
-              ファイルを選択
+              {t.selectFile}
             </Button>
             <input ref={fileInputRef} type="file" accept="video/*" onChange={handleVideoSelect} className="hidden" />
           </div>
@@ -290,7 +296,9 @@ export default function SceneDetector() {
       {/* Video Preview */}
       {videoFile && (
         <Card className="p-4">
-          <p className="text-sm font-semibold text-foreground mb-2">選択ファイル: {videoFile.name}</p>
+          <p className="text-sm font-semibold text-foreground mb-2">
+            {t.selectedFile} {videoFile.name}
+          </p>
           <video ref={videoRef} className="w-full max-h-64 bg-black rounded-lg" controls />
         </Card>
       )}
@@ -300,11 +308,9 @@ export default function SceneDetector() {
         <div className="space-y-4">
           <div>
             <label className="text-sm font-semibold text-foreground block mb-2">
-              シーン検出の感度: {threshold.toFixed(2)}
+              {t.sensitivity} {threshold.toFixed(2)}
             </label>
-            <p className="text-xs text-muted-foreground mb-4">
-              低い値 = より多くのシーン検出 | 高い値 = 大きな変化のみ検出
-            </p>
+            <p className="text-xs text-muted-foreground mb-4">{t.sensitivityHint}</p>
             <Slider
               value={[threshold]}
               onValueChange={(value) => setThreshold(value[0])}
@@ -316,7 +322,7 @@ export default function SceneDetector() {
             />
           </div>
           <div className="flex gap-2 text-xs text-muted-foreground">
-            <span>推奨値: 0.10 (敏感) | 0.20 (標準) | 0.35 (厳選)</span>
+            <span>{t.recommendedValues}</span>
           </div>
         </div>
       </Card>
@@ -326,12 +332,12 @@ export default function SceneDetector() {
         {isProcessing ? (
           <>
             <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            処理中... {progress}%
+            {t.processing} {progress}%
           </>
         ) : (
           <>
             <Play className="w-4 h-4 mr-2" />
-            抽出スタート
+            {t.startExtraction}
           </>
         )}
       </Button>
@@ -340,7 +346,9 @@ export default function SceneDetector() {
       {frames.length > 0 && (
         <Card className="p-6">
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-foreground">抽出されたフレーム ({frames.length}枚)</h3>
+            <h3 className="text-lg font-semibold text-foreground">
+              {t.extractedFrames} ({frames.length})
+            </h3>
 
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {frames.map((frame) => (
@@ -363,9 +371,8 @@ export default function SceneDetector() {
                     className="w-full h-full object-cover"
                   />
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
-                    <div className="text-white text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity text-center">
-                      <div>クリックで</div>
-                      <div>ダウンロード</div>
+                    <div className="text-white text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity text-center whitespace-pre-line">
+                      {t.clickToDownload}
                     </div>
                   </div>
                 </div>
@@ -378,8 +385,7 @@ export default function SceneDetector() {
       {/* Info */}
       <Card className="p-4 bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
         <p className="text-sm text-blue-900 dark:text-blue-100">
-          <strong>💡 ヒント:</strong>{" "}
-          すべての処理はブラウザ内で行われます。動画はアップロードされません。各フレームをクリックするとダウンロードできます。
+          <strong>💡 {language === "ja" ? "ヒント" : "Tip"}:</strong> {t.hint}
         </p>
       </Card>
 
