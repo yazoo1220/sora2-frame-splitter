@@ -11,6 +11,8 @@ import { Upload, Play, Loader2, Download } from "lucide-react"
 import { translations, type Language } from "@/lib/translations"
 import { calculateFrameDifference } from "@/lib/frame-difference"
 import JSZip from "jszip"
+import { FFmpeg } from "@ffmpeg/ffmpeg"
+import { fetchFile } from "@ffmpeg/util"
 
 interface ExtractedFrame {
   timestamp: number
@@ -39,6 +41,7 @@ export default function SceneDetector({ language }: SceneDetectorProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const ffmpegRef = useRef<FFmpeg | null>(null)
 
   useEffect(() => {
     if (videoFile && videoRef.current) {
@@ -50,6 +53,25 @@ export default function SceneDetector({ language }: SceneDetectorProps) {
       }
     }
   }, [videoFile])
+
+  useEffect(() => {
+    // Initialize FFmpeg only if output format is video
+    if (outputFormat === "video" && !ffmpegRef.current) {
+      const ffmpeg = new FFmpeg()
+      ffmpegRef.current = ffmpeg
+      
+      const loadFFmpeg = async () => {
+        try {
+          await ffmpeg.load()
+          console.log("FFmpeg loaded successfully")
+        } catch (error) {
+          console.error("Failed to load FFmpeg:", error)
+        }
+      }
+      
+      loadFFmpeg()
+    }
+  }, [outputFormat])
 
   const handleVideoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -265,113 +287,61 @@ export default function SceneDetector({ language }: SceneDetectorProps) {
     }
   }
 
-  const getSupportedMimeType = (): string => {
-    const types = [
-      "video/mp4;codecs=h264",
-      "video/webm;codecs=vp9",
-      "video/webm;codecs=vp8",
-      "video/webm",
-    ]
-
-    for (const type of types) {
-      if (MediaRecorder.isTypeSupported(type)) {
-        return type
-      }
-    }
-
-    return "video/webm"
-  }
-
-  const getFileExtension = (mimeType: string): string => {
-    if (mimeType.includes("mp4")) return "mp4"
-    return "webm"
-  }
-
   const downloadVideoClip = async (frame: ExtractedFrame) => {
-    if (!videoRef.current || !videoFile) return
+    if (!videoRef.current || !videoFile || !ffmpegRef.current) return
 
-    const video = videoRef.current
+    const ffmpeg = ffmpegRef.current
     const { startTime, endTime } = frame
 
     try {
-      // Note: Browser-based video editing is limited
-      // This implementation captures the video element's playback
+      // Wait for FFmpeg to be loaded
+      if (!ffmpeg.loaded) {
+        await ffmpeg.load()
+      }
+
       const videoUrl = URL.createObjectURL(videoFile)
-      const tempVideo = document.createElement("video")
-      tempVideo.src = videoUrl
-      tempVideo.muted = true
-      tempVideo.crossOrigin = "anonymous"
+      const videoData = await fetchFile(videoUrl)
 
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error("Video loading timeout"))
-        }, 10000)
+      // Write input video file
+      await ffmpeg.writeFile("input.mp4", videoData)
 
-        tempVideo.onloadedmetadata = () => {
-          clearTimeout(timeout)
-          resolve()
-        }
-        tempVideo.onerror = () => {
-          clearTimeout(timeout)
-          reject(new Error("Video loading failed"))
-        }
-      })
+      // Extract clip using FFmpeg
+      const duration = endTime - startTime
+      await ffmpeg.exec([
+        "-i", "input.mp4",
+        "-ss", startTime.toString(),
+        "-t", duration.toString(),
+        "-c:v", "libx264",
+        "-preset", "fast",
+        "-crf", "23",
+        "-c:a", "aac",
+        "-b:a", "128k",
+        "-movflags", "+faststart",
+        "output.mp4"
+      ])
 
-      // Check if captureStream is supported
-      if (!tempVideo.captureStream) {
-        throw new Error("Video captureStream not supported in this browser")
-      }
+      // Read the output file
+      const data = await ffmpeg.readFile("output.mp4")
+      const blob = new Blob([data], { type: "video/mp4" })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = `clip_${String(frame.index).padStart(4, "0")}.mp4`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+      URL.revokeObjectURL(videoUrl)
 
-      // Get supported MIME type
-      const mimeType = getSupportedMimeType()
-      const fileExtension = getFileExtension(mimeType)
-
-      // Create MediaRecorder to capture the clip
-      const stream = tempVideo.captureStream(30)
-      const chunks: Blob[] = []
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType,
-      })
-
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-          chunks.push(e.data)
-        }
-      }
-
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(chunks, { type: mimeType })
-        const url = URL.createObjectURL(blob)
-        const link = document.createElement("a")
-        link.href = url
-        link.download = `clip_${String(frame.index).padStart(4, "0")}.${fileExtension}`
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        URL.revokeObjectURL(url)
-        URL.revokeObjectURL(videoUrl)
-      }
-
-      // Start recording at the specified time
-      tempVideo.currentTime = startTime
-      await new Promise((resolve) => {
-        tempVideo.onseeked = resolve
-      })
-
-      mediaRecorder.start()
-      tempVideo.play()
-
-      // Stop recording at the end time
-      setTimeout(() => {
-        mediaRecorder.stop()
-        tempVideo.pause()
-      }, (endTime - startTime) * 1000)
+      // Clean up
+      await ffmpeg.deleteFile("input.mp4")
+      await ffmpeg.deleteFile("output.mp4")
     } catch (error) {
       console.error("Failed to create video clip:", error)
       setError(
         language === "ja"
-          ? "動画クリップの作成に失敗しました。ブラウザがサポートしていない可能性があります。"
-          : "Failed to create video clip. Your browser may not support this feature."
+          ? "動画クリップの作成に失敗しました。FFmpegの読み込みに失敗した可能性があります。"
+          : "Failed to create video clip. FFmpeg may have failed to load."
       )
     }
   }

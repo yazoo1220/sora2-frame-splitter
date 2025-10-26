@@ -11,6 +11,8 @@
     "test:e2e:report": "playwright show-report"
   },
   "dependencies": {
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2",
     "@radix-ui/react-slider": "latest",
     "@radix-ui/react-slot": "latest",
     "@vercel/analytics": "^1.5.0",
@@ -18,6 +20,7 @@
     "clsx": "^2.1.1",
     "jszip": "^3.10.1",
     "lucide-react": "^0.454.0",
+    "mp4box": "^2.1.2",
     "next": "16.0.0",
     "next-themes": "latest",
     "react": "19.2.0",
