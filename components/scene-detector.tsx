@@ -6,6 +6,7 @@ import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Slider } from "@/components/ui/slider"
+import { SegmentedControl } from "@/components/ui/segmented-control"
 import { Upload, Play, Loader2, Download } from "lucide-react"
 import { translations, type Language } from "@/lib/translations"
 import { calculateFrameDifference } from "@/lib/frame-difference"
@@ -15,16 +16,21 @@ interface ExtractedFrame {
   timestamp: number
   canvas: HTMLCanvasElement
   index: number
+  startTime: number
+  endTime: number
 }
 
 interface SceneDetectorProps {
   language: Language
 }
 
+type OutputFormat = "images" | "video"
+
 export default function SceneDetector({ language }: SceneDetectorProps) {
   const t = translations[language]
   const [videoFile, setVideoFile] = useState<File | null>(null)
   const [threshold, setThreshold] = useState(0.2)
+  const [outputFormat, setOutputFormat] = useState<OutputFormat>("images")
   const [isProcessing, setIsProcessing] = useState(false)
   const [frames, setFrames] = useState<ExtractedFrame[]>([])
   const [progress, setProgress] = useState(0)
@@ -167,6 +173,8 @@ export default function SceneDetector({ language }: SceneDetectorProps) {
         timestamp: 0,
         canvas: firstCanvas,
         index: frameIndex,
+        startTime: 0,
+        endTime: frameInterval,
       })
       frameIndex++
 
@@ -205,10 +213,14 @@ export default function SceneDetector({ language }: SceneDetectorProps) {
             sceneCtx.drawImage(canvas, 0, 0)
           }
 
+          const previousFrameEndTime = extractedFrames.length > 0 ? extractedFrames[extractedFrames.length - 1].endTime : 0
+          
           extractedFrames.push({
             timestamp: currentTime,
             canvas: sceneCanvas,
             index: frameIndex,
+            startTime: previousFrameEndTime,
+            endTime: currentTime + frameInterval,
           })
           frameIndex++
         }
@@ -216,6 +228,11 @@ export default function SceneDetector({ language }: SceneDetectorProps) {
         previousImageData = currentImageData
         currentTime += frameInterval
         setProgress(Math.round((currentTime / duration) * 100))
+      }
+
+      // Update the last frame's end time to the video duration
+      if (extractedFrames.length > 0) {
+        extractedFrames[extractedFrames.length - 1].endTime = duration
       }
 
       console.log("[v0] Frame extraction complete, frames:", extractedFrames.length)
@@ -230,50 +247,175 @@ export default function SceneDetector({ language }: SceneDetectorProps) {
   }
 
 
-  const downloadFrame = (frame: ExtractedFrame) => {
-    frame.canvas.toBlob((blob) => {
-      if (!blob) return
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement("a")
-      link.href = url
-      link.download = `frame_${String(frame.index).padStart(4, "0")}.png`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(url)
-    }, "image/png")
+  const downloadFrame = async (frame: ExtractedFrame) => {
+    if (outputFormat === "images") {
+      frame.canvas.toBlob((blob) => {
+        if (!blob) return
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement("a")
+        link.href = url
+        link.download = `frame_${String(frame.index).padStart(4, "0")}.png`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        URL.revokeObjectURL(url)
+      }, "image/png")
+    } else {
+      await downloadVideoClip(frame)
+    }
+  }
+
+  const getSupportedMimeType = (): string => {
+    const types = [
+      "video/mp4;codecs=h264",
+      "video/webm;codecs=vp9",
+      "video/webm;codecs=vp8",
+      "video/webm",
+    ]
+
+    for (const type of types) {
+      if (MediaRecorder.isTypeSupported(type)) {
+        return type
+      }
+    }
+
+    return "video/webm"
+  }
+
+  const getFileExtension = (mimeType: string): string => {
+    if (mimeType.includes("mp4")) return "mp4"
+    return "webm"
+  }
+
+  const downloadVideoClip = async (frame: ExtractedFrame) => {
+    if (!videoRef.current || !videoFile) return
+
+    const video = videoRef.current
+    const { startTime, endTime } = frame
+
+    try {
+      // Note: Browser-based video editing is limited
+      // This implementation captures the video element's playback
+      const videoUrl = URL.createObjectURL(videoFile)
+      const tempVideo = document.createElement("video")
+      tempVideo.src = videoUrl
+      tempVideo.muted = true
+      tempVideo.crossOrigin = "anonymous"
+
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error("Video loading timeout"))
+        }, 10000)
+
+        tempVideo.onloadedmetadata = () => {
+          clearTimeout(timeout)
+          resolve()
+        }
+        tempVideo.onerror = () => {
+          clearTimeout(timeout)
+          reject(new Error("Video loading failed"))
+        }
+      })
+
+      // Check if captureStream is supported
+      if (!tempVideo.captureStream) {
+        throw new Error("Video captureStream not supported in this browser")
+      }
+
+      // Get supported MIME type
+      const mimeType = getSupportedMimeType()
+      const fileExtension = getFileExtension(mimeType)
+
+      // Create MediaRecorder to capture the clip
+      const stream = tempVideo.captureStream(30)
+      const chunks: Blob[] = []
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType,
+      })
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          chunks.push(e.data)
+        }
+      }
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunks, { type: mimeType })
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement("a")
+        link.href = url
+        link.download = `clip_${String(frame.index).padStart(4, "0")}.${fileExtension}`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        URL.revokeObjectURL(url)
+        URL.revokeObjectURL(videoUrl)
+      }
+
+      // Start recording at the specified time
+      tempVideo.currentTime = startTime
+      await new Promise((resolve) => {
+        tempVideo.onseeked = resolve
+      })
+
+      mediaRecorder.start()
+      tempVideo.play()
+
+      // Stop recording at the end time
+      setTimeout(() => {
+        mediaRecorder.stop()
+        tempVideo.pause()
+      }, (endTime - startTime) * 1000)
+    } catch (error) {
+      console.error("Failed to create video clip:", error)
+      setError(
+        language === "ja"
+          ? "動画クリップの作成に失敗しました。ブラウザがサポートしていない可能性があります。"
+          : "Failed to create video clip. Your browser may not support this feature."
+      )
+    }
   }
 
   const downloadAllFrames = async () => {
     if (frames.length === 0) return
 
     setIsBulkDownloading(true)
-    const zip = new JSZip()
 
     try {
-      // Add all frames to ZIP
-      for (const frame of frames) {
-        const blob = await new Promise<Blob>((resolve) => {
-          frame.canvas.toBlob((blob) => {
-            resolve(blob || new Blob())
-          }, "image/png")
-        })
-        zip.file(`frame_${String(frame.index).padStart(4, "0")}.png`, blob)
-      }
+      if (outputFormat === "images") {
+        const zip = new JSZip()
 
-      // Generate ZIP file
-      const zipBlob = await zip.generateAsync({ type: "blob" })
-      const url = URL.createObjectURL(zipBlob)
-      const link = document.createElement("a")
-      link.href = url
-      link.download = "extracted_frames.zip"
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(url)
+        // Add all frames to ZIP
+        for (const frame of frames) {
+          const blob = await new Promise<Blob>((resolve) => {
+            frame.canvas.toBlob((blob) => {
+              resolve(blob || new Blob())
+            }, "image/png")
+          })
+          zip.file(`frame_${String(frame.index).padStart(4, "0")}.png`, blob)
+        }
+
+        // Generate ZIP file
+        const zipBlob = await zip.generateAsync({ type: "blob" })
+        const url = URL.createObjectURL(zipBlob)
+        const link = document.createElement("a")
+        link.href = url
+        link.download = "extracted_frames.zip"
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        URL.revokeObjectURL(url)
+      } else {
+        // Download video clips one by one
+        for (const frame of frames) {
+          await downloadVideoClip(frame)
+          // Small delay between downloads
+          await new Promise((resolve) => setTimeout(resolve, 500))
+        }
+      }
     } catch (error) {
-      console.error("Failed to create ZIP:", error)
-      setError(language === "ja" ? "ZIPファイルの作成に失敗しました" : "Failed to create ZIP file")
+      console.error("Failed to download:", error)
+      setError(language === "ja" ? "ダウンロードに失敗しました" : "Failed to download")
     } finally {
       setIsBulkDownloading(false)
     }
@@ -340,6 +482,25 @@ export default function SceneDetector({ language }: SceneDetectorProps) {
           </div>
           <div className="flex gap-2 text-xs text-muted-foreground">
             <span>{t.recommendedValues}</span>
+          </div>
+        </div>
+      </Card>
+
+      {/* Output Format Selection */}
+      <Card className="p-6">
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-semibold text-foreground block mb-3">
+              {t.outputFormat}
+            </label>
+            <SegmentedControl
+              value={outputFormat}
+              onValueChange={(value) => setOutputFormat(value as OutputFormat)}
+              options={[
+                { value: "images", label: t.outputFormatImages },
+                { value: "video", label: t.outputFormatVideo },
+              ]}
+            />
           </div>
         </div>
       </Card>
