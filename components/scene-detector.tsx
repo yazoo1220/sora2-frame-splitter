@@ -6,8 +6,9 @@ import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Slider } from "@/components/ui/slider"
-import { Upload, Play, Loader2 } from "lucide-react"
+import { Upload, Play, Loader2, Download } from "lucide-react"
 import { translations, type Language } from "@/lib/translations"
+import JSZip from "jszip"
 
 interface ExtractedFrame {
   timestamp: number
@@ -27,6 +28,7 @@ export default function SceneDetector({ language }: SceneDetectorProps) {
   const [frames, setFrames] = useState<ExtractedFrame[]>([])
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const [isBulkDownloading, setIsBulkDownloading] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -262,6 +264,41 @@ export default function SceneDetector({ language }: SceneDetectorProps) {
     }, "image/png")
   }
 
+  const downloadAllFrames = async () => {
+    if (frames.length === 0) return
+
+    setIsBulkDownloading(true)
+    const zip = new JSZip()
+
+    try {
+      // Add all frames to ZIP
+      for (const frame of frames) {
+        const blob = await new Promise<Blob>((resolve) => {
+          frame.canvas.toBlob((blob) => {
+            resolve(blob || new Blob())
+          }, "image/png")
+        })
+        zip.file(`frame_${String(frame.index).padStart(4, "0")}.png`, blob)
+      }
+
+      // Generate ZIP file
+      const zipBlob = await zip.generateAsync({ type: "blob" })
+      const url = URL.createObjectURL(zipBlob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = "extracted_frames.zip"
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error("Failed to create ZIP:", error)
+      setError(language === "ja" ? "ZIPファイルの作成に失敗しました" : "Failed to create ZIP file")
+    } finally {
+      setIsBulkDownloading(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Video Upload */}
@@ -346,9 +383,29 @@ export default function SceneDetector({ language }: SceneDetectorProps) {
       {frames.length > 0 && (
         <Card className="p-6">
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-foreground">
-              {t.extractedFrames} ({frames.length})
-            </h3>
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-semibold text-foreground">
+                {t.extractedFrames} ({frames.length})
+              </h3>
+              <Button 
+                onClick={downloadAllFrames} 
+                disabled={isBulkDownloading}
+                variant="outline"
+                size="sm"
+              >
+                {isBulkDownloading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    {t.bulkDownloading}
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4 mr-2" />
+                    {t.bulkDownload}
+                  </>
+                )}
+              </Button>
+            </div>
 
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {frames.map((frame) => (

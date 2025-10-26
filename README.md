@@ -8,7 +8,7 @@
 
 ![Sora2 Frame Splitter](public/thumbnail.png)
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/yazoo1220s-projects/v0-video-scene-detector)
+[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://sora2-frame-splitter.vercel.app/)
 
 ## Overview / 概要
 
@@ -24,6 +24,7 @@ Sora2 Frame Splitterは、動画をアップロードすると、シーンの変
 - 📸 **Frame Extraction / フレーム抽出**: Extracts keyframes from each scene / 各シーンの先頭フレームを自動抽出
 - 🎚️ **Sensitivity Adjustment / 感度調整**: Adjustable detection sensitivity via slider / スライダーでシーン検出の感度を調整可能
 - 💾 **Individual Download / 個別ダウンロード**: Download extracted frames individually / 抽出されたフレームを個別にダウンロード可能
+- 📦 **Bulk Download / 一括ダウンロード**: Download all frames as a ZIP file / すべてのフレームをZIPファイルで一括ダウンロード可能
 - 🌐 **Multi-language Support / 日本語・英語対応**: Switch between Japanese and English interface / 日本語と英語のインターフェースを切り替え可能
 - 🔒 **Privacy-focused / プライバシー重視**: All processing done in browser / すべての処理がブラウザ内で完結
 
@@ -33,13 +34,13 @@ Sora2 Frame Splitterは、動画をアップロードすると、シーンの変
 1. **Upload Video**: Drag & drop a video file or click the button to select a file
 2. **Adjust Sensitivity**: Use the slider to adjust scene detection sensitivity (recommended: 0.20)
 3. **Start Extraction**: Click the "Start Extraction" button
-4. **Download Frames**: Click each extracted frame to download
+4. **Download Frames**: Click each extracted frame to download individually, or use the "Download All" button to get all frames as a ZIP file
 
 <!-- Japanese -->
 1. **動画をアップロード**: 動画ファイルをドラッグ&ドロップ、またはファイル選択ボタンから動画を選択
 2. **感度を調整**: シーン検出の感度をスライダーで調整（推奨値: 0.20）
 3. **抽出スタート**: 「抽出スタート」ボタンをクリック
-4. **フレームをダウンロード**: 抽出されたフレームをクリックしてダウンロード
+4. **フレームをダウンロード**: 抽出されたフレームをクリックして個別にダウンロード、または「一括ダウンロード」ボタンですべてのフレームをZIPファイルで取得
 
 ### Sensitivity Settings / 感度設定の目安
 
@@ -86,7 +87,7 @@ Deployed application:
 <!-- Japanese -->
 デプロイされたアプリケーション:
 
-**[https://vercel.com/yazoo1220s-projects/v0-video-scene-detector](https://vercel.com/yazoo1220s-projects/v0-video-scene-detector)**
+**[https://sora2-frame-splitter.vercel.app/](https://sora2-frame-splitter.vercel.app/)**
 
 ## Author / 作者
 
