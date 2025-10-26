@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card"
 import { Slider } from "@/components/ui/slider"
 import { Upload, Play, Loader2, Download } from "lucide-react"
 import { translations, type Language } from "@/lib/translations"
+import { calculateFrameDifference } from "@/lib/frame-difference"
 import JSZip from "jszip"
 
 interface ExtractedFrame {
@@ -228,27 +229,6 @@ export default function SceneDetector({ language }: SceneDetectorProps) {
     }
   }
 
-  const calculateFrameDifference = (imageData1: ImageData, imageData2: ImageData): number => {
-    const data1 = imageData1.data
-    const data2 = imageData2.data
-    let diff = 0
-    const sampleRate = 4
-
-    for (let i = 0; i < data1.length; i += sampleRate * 4) {
-      const r1 = data1[i]
-      const g1 = data1[i + 1]
-      const b1 = data1[i + 2]
-
-      const r2 = data2[i]
-      const g2 = data2[i + 1]
-      const b2 = data2[i + 2]
-
-      const pixelDiff = (Math.abs(r1 - r2) + Math.abs(g1 - g2) + Math.abs(b1 - b2)) / 765
-      diff += pixelDiff
-    }
-
-    return diff / (data1.length / (sampleRate * 4))
-  }
 
   const downloadFrame = (frame: ExtractedFrame) => {
     frame.canvas.toBlob((blob) => {

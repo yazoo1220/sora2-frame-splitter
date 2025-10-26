@@ -9,6 +9,7 @@
 ![Sora2 Frame Splitter](public/thumbnail.png)
 
 [![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://sora2-frame-splitter.vercel.app/)
+[![Tests](https://github.com/Yachimat/sora2-frame-splitter/actions/workflows/test.yml/badge.svg)](https://github.com/Yachimat/sora2-frame-splitter/actions/workflows/test.yml)
 
 ## Overview / 概要
 
