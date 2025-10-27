@@ -25,32 +25,12 @@
 - Next.jsアプリケーションのビルド
 - ビルド成果物の保存
 
-### deploy.yml
-**Deploy to Vercel** - メインブランチへのマージ時にVercelへデプロイします。
+### デプロイ
 
-- トリガー: `main`ブランチへの`push`
-- 実行内容:
-  - テストの実行
-  - Vercelへのデプロイ
+**Vercelでの自動デプロイ** - GitHubのmainブランチにpushされると、Vercelが自動的にデプロイします。
 
-## セットアップ
-
-### 必要なシークレット（Vercelデプロイ用）
-
-1. **VERCEL_TOKEN**: Vercel APIトークン
-   - Vercelダッシュボード > Settings > Tokens から取得
-
-2. **VERCEL_ORG_ID**: Vercel組織ID
-   - VercelダッシュボードのURLバーから取得
-
-3. **VERCEL_PROJECT_ID**: VercelプロジェクトID
-   - Vercelダッシュボードのプロジェクト設定から取得
-
-### GitHubリポジトリにシークレットを追加
-
-1. リポジトリのSettings > Secrets and variables > Actionsに移動
-2. "New repository secret"をクリック
-3. 上記のシークレットを追加
+- Vercelの自動デプロイが有効になっているため、追加の設定は不要です
+- Vercelダッシュボードでデプロイ状況を確認できます
 
 ## ローカルでのテスト実行
 
