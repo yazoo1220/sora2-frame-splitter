@@ -1,11 +1,21 @@
 "use client"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import SceneDetector from "@/components/scene-detector"
 import { translations, type Language } from "@/lib/translations"
 
 export default function Home() {
   const [language, setLanguage] = useState<Language>("ja")
   const t = translations[language]
+
+  useEffect(() => {
+    // Debug: Check if Vercel Analytics is loaded
+    if (typeof window !== 'undefined') {
+      console.log('Vercel Analytics check:', {
+        hasAnalytics: typeof window !== 'undefined' && window !== null,
+        userAgent: navigator.userAgent,
+      })
+    }
+  }, [])
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 p-4 md:p-8 flex flex-col">
