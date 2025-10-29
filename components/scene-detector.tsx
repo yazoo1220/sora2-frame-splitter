@@ -66,12 +66,26 @@ export default function SceneDetector({ language }: SceneDetectorProps) {
           console.log("FFmpeg loaded successfully")
         } catch (error) {
           console.error("Failed to load FFmpeg:", error)
+          setError(
+            language === "ja"
+              ? "FFmpegの読み込みに失敗しました。ページを再読み込みしてください。"
+              : "Failed to load FFmpeg. Please refresh the page."
+          )
+          // Reset output format to images if FFmpeg fails to load
+          setOutputFormat("images")
         }
       }
       
-      loadFFmpeg()
+      loadFFmpeg().catch((error) => {
+        console.error("Unhandled error in loadFFmpeg:", error)
+        setError(
+          language === "ja"
+            ? "予期しないエラーが発生しました。ページを再読み込みしてください。"
+            : "An unexpected error occurred. Please refresh the page."
+        )
+      })
     }
-  }, [outputFormat])
+  }, [outputFormat, language])
 
   const handleVideoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -109,6 +123,11 @@ export default function SceneDetector({ language }: SceneDetectorProps) {
   const extractFrames = async () => {
     if (!videoRef.current || !canvasRef.current) {
       console.log("[v0] Video or canvas ref not available")
+      setError(
+        language === "ja"
+          ? "動画またはキャンバスの参照が利用できません。ページを再読み込みしてください。"
+          : "Video or canvas reference not available. Please refresh the page."
+      )
       return
     }
 
@@ -121,6 +140,12 @@ export default function SceneDetector({ language }: SceneDetectorProps) {
     try {
       const video = videoRef.current
       const canvas = canvasRef.current
+      
+      // Double check refs are still available
+      if (!video || !canvas) {
+        throw new Error("Video or canvas reference lost during processing")
+      }
+      
       const ctx = canvas.getContext("2d")
 
       if (!ctx) throw new Error("Canvas context not available")
@@ -157,27 +182,55 @@ export default function SceneDetector({ language }: SceneDetectorProps) {
       })
 
       const duration = video.duration
+      
+      // Validate video duration
+      if (!isFinite(duration) || duration <= 0) {
+        throw new Error("Invalid video duration")
+      }
+      
       const fps = 10
       const frameInterval = 1 / fps
       const extractedFrames: ExtractedFrame[] = []
       let previousImageData: ImageData | null = null
       let frameIndex = 0
 
+      // Validate video dimensions
+      if (video.videoWidth === 0 || video.videoHeight === 0) {
+        throw new Error("Invalid video dimensions")
+      }
+
       // Extract first frame
       video.currentTime = 0
-      await new Promise((resolve) => {
+      await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           video.removeEventListener("seeked", handleSeeked)
-          resolve(null)
-        }, 3000)
+          video.removeEventListener("error", handleError)
+          // Don't reject on timeout - might be normal for some videos
+          resolve()
+        }, 5000) // Increased timeout
 
         const handleSeeked = () => {
           clearTimeout(timeout)
           video.removeEventListener("seeked", handleSeeked)
-          resolve(null)
+          video.removeEventListener("error", handleError)
+          resolve()
         }
+        
+        const handleError = (e: Event) => {
+          clearTimeout(timeout)
+          video.removeEventListener("seeked", handleSeeked)
+          video.removeEventListener("error", handleError)
+          reject(new Error("Failed to seek to first frame"))
+        }
+        
         video.addEventListener("seeked", handleSeeked)
+        video.addEventListener("error", handleError)
       })
+
+      // Re-check context after async operation
+      if (!videoRef.current || !canvasRef.current || !ctx) {
+        throw new Error("Context lost during first frame extraction")
+      }
 
       canvas.width = video.videoWidth
       canvas.height = video.videoHeight
@@ -205,22 +258,44 @@ export default function SceneDetector({ language }: SceneDetectorProps) {
       // Process video frames
       let currentTime = frameInterval
       while (currentTime < duration) {
+        // Check if video ref is still available
+        if (!videoRef.current || !canvasRef.current) {
+          throw new Error("Video or canvas reference lost during frame extraction")
+        }
+        
         video.currentTime = currentTime
 
-        await new Promise((resolve) => {
+        await new Promise((resolve, reject) => {
           const timeout = setTimeout(() => {
             video.removeEventListener("seeked", handleSeeked)
+            video.removeEventListener("error", handleError)
+            // Don't reject, just resolve - timeout might be normal for slow systems
             resolve(null)
-          }, 3000)
+          }, 5000) // Increased timeout for slower devices
 
           const handleSeeked = () => {
             clearTimeout(timeout)
             video.removeEventListener("seeked", handleSeeked)
+            video.removeEventListener("error", handleError)
             resolve(null)
           }
+          
+          const handleError = (e: Event) => {
+            clearTimeout(timeout)
+            video.removeEventListener("seeked", handleSeeked)
+            video.removeEventListener("error", handleError)
+            reject(new Error("Video seek failed"))
+          }
+          
           video.addEventListener("seeked", handleSeeked)
+          video.addEventListener("error", handleError)
         })
 
+        // Re-check context after async operation
+        if (!videoRef.current || !canvasRef.current || !ctx) {
+          throw new Error("Context lost during frame extraction")
+        }
+        
         ctx.drawImage(video, 0, 0)
         const currentImageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
 
@@ -262,7 +337,12 @@ export default function SceneDetector({ language }: SceneDetectorProps) {
       setProgress(100)
     } catch (error) {
       console.error("[v0] Frame extraction failed:", error)
-      setError(`エラー: ${error instanceof Error ? error.message : "不明なエラーが発生しました"}`)
+      const errorMessage = error instanceof Error ? error.message : "不明なエラーが発生しました"
+      setError(
+        language === "ja"
+          ? `エラー: ${errorMessage}`
+          : `Error: ${errorMessage}`
+      )
     } finally {
       setIsProcessing(false)
     }
@@ -270,25 +350,57 @@ export default function SceneDetector({ language }: SceneDetectorProps) {
 
 
   const downloadFrame = async (frame: ExtractedFrame) => {
-    if (outputFormat === "images") {
-      frame.canvas.toBlob((blob) => {
-        if (!blob) return
-        const url = URL.createObjectURL(blob)
-        const link = document.createElement("a")
-        link.href = url
-        link.download = `frame_${String(frame.index).padStart(4, "0")}.png`
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        URL.revokeObjectURL(url)
-      }, "image/png")
-    } else {
-      await downloadVideoClip(frame)
+    try {
+      if (outputFormat === "images") {
+        frame.canvas.toBlob((blob) => {
+          if (!blob) {
+            setError(
+              language === "ja"
+                ? "画像の生成に失敗しました。"
+                : "Failed to generate image."
+            )
+            return
+          }
+          try {
+            const url = URL.createObjectURL(blob)
+            const link = document.createElement("a")
+            link.href = url
+            link.download = `frame_${String(frame.index).padStart(4, "0")}.png`
+            document.body.appendChild(link)
+            link.click()
+            document.body.removeChild(link)
+            URL.revokeObjectURL(url)
+          } catch (error) {
+            console.error("Failed to download frame:", error)
+            setError(
+              language === "ja"
+                ? "ダウンロードに失敗しました。"
+                : "Failed to download."
+            )
+          }
+        }, "image/png")
+      } else {
+        await downloadVideoClip(frame)
+      }
+    } catch (error) {
+      console.error("Error in downloadFrame:", error)
+      setError(
+        language === "ja"
+          ? "ダウンロード中にエラーが発生しました。"
+          : "An error occurred during download."
+      )
     }
   }
 
   const downloadVideoClip = async (frame: ExtractedFrame) => {
-    if (!videoRef.current || !videoFile || !ffmpegRef.current) return
+    if (!videoRef.current || !videoFile || !ffmpegRef.current) {
+      setError(
+        language === "ja"
+          ? "動画またはFFmpegの参照が利用できません。"
+          : "Video or FFmpeg reference not available."
+      )
+      return
+    }
 
     const ffmpeg = ffmpegRef.current
     const { startTime, endTime } = frame
@@ -296,7 +408,15 @@ export default function SceneDetector({ language }: SceneDetectorProps) {
     try {
       // Wait for FFmpeg to be loaded
       if (!ffmpeg.loaded) {
-        await ffmpeg.load()
+        try {
+          await ffmpeg.load()
+        } catch (loadError) {
+          throw new Error(
+            language === "ja"
+              ? "FFmpegの読み込みに失敗しました。"
+              : "Failed to load FFmpeg."
+          )
+        }
       }
 
       const videoUrl = URL.createObjectURL(videoFile)

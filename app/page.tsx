@@ -8,6 +8,30 @@ export default function Home() {
   const t = translations[language]
 
   useEffect(() => {
+    // Global error handler for unhandled promise rejections
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      console.error("Unhandled promise rejection:", event.reason)
+      // Prevent default browser error handling
+      event.preventDefault()
+    }
+
+    // Global error handler for general errors
+    const handleError = (event: ErrorEvent) => {
+      console.error("Global error:", event.error)
+      // Prevent default browser error handling
+      event.preventDefault()
+    }
+
+    window.addEventListener("unhandledrejection", handleUnhandledRejection)
+    window.addEventListener("error", handleError)
+
+    return () => {
+      window.removeEventListener("unhandledrejection", handleUnhandledRejection)
+      window.removeEventListener("error", handleError)
+    }
+  }, [])
+
+  useEffect(() => {
     // Debug: Check if Vercel Analytics is loaded
     if (typeof window !== 'undefined') {
       console.log('Vercel Analytics check:', {
