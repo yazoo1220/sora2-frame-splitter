@@ -1,10 +1,15 @@
 "use client"
 import { useState, useEffect } from "react"
 import SceneDetector from "@/components/scene-detector"
+import ImageMerger from "@/components/image-merger"
+import { SegmentedControl } from "@/components/ui/segmented-control"
 import { translations, type Language } from "@/lib/translations"
+
+type Tab = "scene-detector" | "image-merger"
 
 export default function Home() {
   const [language, setLanguage] = useState<Language>("ja")
+  const [activeTab, setActiveTab] = useState<Tab>("scene-detector")
   const t = translations[language]
 
   useEffect(() => {
@@ -45,7 +50,21 @@ export default function Home() {
           </div>
         </div>
 
-        <SceneDetector language={language} />
+        {/* Tab Navigation */}
+        <div className="mb-6">
+          <SegmentedControl
+            value={activeTab}
+            onValueChange={(value) => setActiveTab(value as Tab)}
+            options={[
+              { value: "scene-detector", label: language === "ja" ? "シーン検出" : "Scene Detector" },
+              { value: "image-merger", label: language === "ja" ? "画像統合" : "Image Merger" },
+            ]}
+          />
+        </div>
+
+        {/* Tab Content */}
+        {activeTab === "scene-detector" && <SceneDetector language={language} />}
+        {activeTab === "image-merger" && <ImageMerger language={language} />}
       </div>
 
       <div className="max-w-6xl mx-auto mt-12 pt-8 border-t border-muted text-center text-sm text-muted-foreground">
